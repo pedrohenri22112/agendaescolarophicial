@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Agenda Escolar - Demo (com Tema e Transição)</title>
+  <style>
+    /* Theme variables (light by default). Dark theme overrides live under .dark on html */
+    :root{
+      --bg: #f5f7fb;
+      --page-bg: linear-gradient(180deg,#f8fafc 0%, var(--bg) 100%);
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #6b7280;
+      --accent: #3b82f6;
+      --accent-2: #7c3aed;
+      --btn-text: #ffffff;
+      --border: #e6eef7;
+
+      /* event colors */
+      --event-meeting: #2563eb;
+      --event-lecture: #f59e0b;
+      --event-homework: #7c3aed;
+      --event-test: #10b981;
+      --event-other: #6b7280;
+    }
+
+    /* Dark theme */
+    html.dark {
+      --bg: #0b1220;
+      --page-bg: linear-gradient(180deg,#071028 0%, #071426 100%);
+      --card: #071427;
+      --text: #e6eef8;
+      --muted: #9aa6b2;
+      --accent: #60a5fa;
+      --accent-2: #a78bfa;
+      --btn-text: #0b1220;
+      --border: rgba(255,255,255,0.06);
+
+      --event-meeting: #60a5fa;
+      --event-lecture: #fbbf24;
+      --event-homework: #a78bfa;
+      --event-test: #34d399;
+      --event-other: #94a3b8;
+    }
+
+    /* Respect reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      html.theme-transition * {
+        transition: none !important;
+      }
+    }
+
+    /* No transitions by default to avoid animation on initial load */
+    html * {
+      transition: none;
+    }
+
+    /* Enable transitions only while html has .theme-transition */
+    html.theme-transition,
+    html.theme-transition * {
+      transition-property: background-color, color, border-color, box-shadow, fill, stroke, opacity;
+      transition-duration: 260ms;
+      transition-timing-function: ease;
+    }
+
+    /* Basic reset & layout */
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+      background: var(--page-bg);
+      color:var(--text);
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      min-height:100vh;
+    }
+
+    .top{
+      display:flex;justify-content:space-between;align-items:center;
+      padding:14px 18px;background:var(--card);border-bottom:1px solid var(--border);
+      gap:12px;
+    }
+    .brand{font-weight:700}
+    .controls{display:flex;gap:8px;align-items:center}
+    .select,input{padding:8px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text)}
+    .select:disabled{opacity:0.7}
+    .grid{display:grid;grid-template-columns:1fr 360px;gap:18px;padding:18px}
+    .card{background:var(--card);padding:14px;border-radius:10px;box-shadow: 0 6px 18px rgba(2,6,23,0.04)}
+    .events-list{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+    .event-item{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:8px;background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent)}
+    .btn{
+      padding:8px 12px;border-radius:8px;border:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));
+      color:var(--btn-text);cursor:pointer;
+    }
+    .btn.secondary{background:transparent;border:1px solid var(--border); color:var(--text)}
+    .muted{color:var(--muted)}
+
+    /* small layout pieces */
+    #userInfo{font-size:14px}
+    #monthTitle{font-size:13px;color:var(--muted)}
+
+    /* Theme toggle */
+    .theme-toggle{
+      display:inline-flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:transparent;cursor:pointer;
+      color:var(--text);
+    }
+    .theme-icon{font-size:16px}
+    .ev-swatch{width:10px;height:48px;border-radius:8px;margin-right:10px}
+
+    /* responsive */
+    @media (max-width:900px){
+      .grid{grid-template-columns:1fr; padding:12px}
+    }
+
+    /* modal */
+    #modal > div { box-shadow: 0 12px 40px rgba(2,6,23,0.35); }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div style="display:flex;gap:12px;align-items:center">
+      <div class="brand">Agenda Escolar (demo)</div>
+
+      <input id="searchInput" class="select" placeholder="Buscar..." />
+      <select id="turmaSelect" class="select">
+        <option value="all">Todas</option>
+        <option value="8A">8A</option>
+        <option value="8B">8B</option>
+        <option value="9A">9A</option>
+      </select>
+    </div>
+
+    <div class="controls">
+      <div id="userInfo" class="muted">Não autenticado</div>
+
+      <!-- Theme toggle button -->
+      <button id="themeToggle" class="theme-toggle" aria-pressed="false" title="Alternar tema">
+        <span id="themeIcon" class="theme-icon">🌙</span>
+        <span id="themeLabel" style="font-size:13px">Escuro</span>
+      </button>
+
+      <button id="loginBtn" class="btn">Entrar</button>
+      <button id="logoutBtn" class="btn secondary" style="display:none">Sair</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-weight:700">Calendário (mês)</div>
+          <div id="monthTitle" class="muted"></div>
+        </div>
+        <div id="calendar" style="margin-top:12px" class="muted">Calendário simplificado — eventos destacados por dia.</div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <div style="font-weight:700">Comunicados</div>
+        <div id="comunicados" style="margin-top:8px"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-weight:700">Próximos eventos</div>
+          <button id="newEventBtn" class="btn" title="Apenas professores/admin" disabled>+ Novo</button>
+        </div>
+        <div id="eventsList" class="events-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal login rápido -->
+  <div id="modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);align-items:center;justify-content:center">
+    <div style="background:var(--card);padding:18px;border-radius:10px;width:320px">
+      <h3>Entrar</h3>
+      <input id="username" class="select" placeholder="usuário" style="width:100%;margin-bottom:8px"/>
+      <input id="password" type="password" class="select" placeholder="senha" style="width:100%;margin-bottom:8px"/>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button id="doLogin" class="btn">Entrar</button>
+        <button id="closeModal" class="btn secondary">Cancelar</button>
+      </div>
+      <div style="margin-top:10px" class="muted">Test: pedro/1234, maria/prof123, admin/admin</div>
+    </div>
+  </div>
+
+  <script>
+    /* ---------------- Theme management + transition helper ---------------- */
+    const THEME_KEY = 'ae_theme'; // 'light' | 'dark' | not set -> follow system
+
+    function applyTheme(theme){
+      if(theme === 'dark') {
+        document.documentElement.classList.add('dark');
+        document.getElementById('themeIcon').textContent = '☀️';
+        document.getElementById('themeLabel').textContent = 'Claro';
+        document.getElementById('themeToggle').setAttribute('aria-pressed','true');
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.getElementById('themeIcon').textContent = '🌙';
+        document.getElementById('themeLabel').textContent = 'Escuro';
+        document.getElementById('themeToggle').setAttribute('aria-pressed','false');
+      }
+    }
+
+    function detectSystemPrefersDark(){
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+
+    function loadTheme(){
+      const stored = localStorage.getItem(THEME_KEY);
+      if(stored === 'dark' || stored === 'light'){
+        applyTheme(stored);
+        return stored;
+      }
+      // if no stored, follow system
+      const sys = detectSystemPrefersDark() ? 'dark' : 'light';
+      applyTheme(sys);
+      return null;
+    }
+
+    function toggleTheme(){
+      // add transition class so elements animate; remove after timeout
+      document.documentElement.classList.add('theme-transition');
+      // determine next theme
+      const isDark = document.documentElement.classList.contains('dark');
+      const next = isDark ? 'light' : 'dark';
+      applyTheme(next);
+      localStorage.setItem(THEME_KEY, next);
+      // remove transition helper after animation completes
+      window.setTimeout(()=> {
+        document.documentElement.classList.remove('theme-transition');
+      }, 360);
+    }
+
+    document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+
+    // respond to system changes if user hasn't explicitly set a theme
+    if (window.matchMedia) {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      mq.addEventListener && mq.addEventListener('change', e => {
+        const stored = localStorage.getItem(THEME_KEY);
+        if(!stored){ // only update when user hasn't chosen explicitly
+          // animate system change
+          document.documentElement.classList.add('theme-transition');
+          applyTheme(e.matches ? 'dark' : 'light');
+          window.setTimeout(()=> document.documentElement.classList.remove('theme-transition'), 360);
+        }
+      });
+    }
+
+    loadTheme(); // initialize theme
+
+    /* ---------------- existing frontend logic (API integration) ---------------- */
+    const API_BASE = '/api';
+    function setToken(t){ if(t) localStorage.setItem('ae_token', t); else localStorage.removeItem('ae_token'); }
+    function getToken(){ return localStorage.getItem('ae_token'); }
+    async function apiFetch(path, opts = {}) {
+      const headers = opts.headers || {};
+      headers['Content-Type'] = 'application/json';
+      const token = getToken();
+      if(token) headers['Authorization'] = 'Bearer ' + token;
+      opts.headers = headers;
+      const res = await fetch(API_BASE + path, opts);
+      if(res.status === 401){
+        setToken(null);
+        applySession(null);
+        throw new Error('Não autenticado');
+      }
+      const json = await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(json.error || 'Erro na API');
+      return json;
+    }
+
+    const loginBtn = document.getElementById('loginBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const userInfo = document.getElementById('userInfo');
+    const modal = document.getElementById('modal');
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const doLogin = document.getElementById('doLogin');
+    const closeModal = document.getElementById('closeModal');
+    const turmaSelect = document.getElementById('turmaSelect');
+    const searchInput = document.getElementById('searchInput');
+    const eventsListEl = document.getElementById('eventsList');
+    const comunicadosEl = document.getElementById('comunicados');
+    const newEventBtn = document.getElementById('newEventBtn');
+
+    let currentUser = null;
+
+    function applySession(user){
+      currentUser = user;
+      if(user){
+        userInfo.textContent = `${user.name} • ${user.role} ${user.turma && user.turma !== 'all' ? '• ' + user.turma : ''}`;
+        loginBtn.style.display = 'none';
+        logoutBtn.style.display = 'inline-block';
+        if(user.role === 'professor' || user.role === 'admin'){ newEventBtn.disabled = false; }
+        else { newEventBtn.disabled = true; }
+        if(user.role === 'aluno'){ turmaSelect.value = user.turma || 'all'; turmaSelect.disabled = true; }
+        else { turmaSelect.disabled = false; }
+      } else {
+        userInfo.textContent = 'Não autenticado';
+        loginBtn.style.display = 'inline-block';
+        logoutBtn.style.display = 'none';
+        turmaSelect.disabled = false;
+        newEventBtn.disabled = true;
+      }
+      fetchAndRender();
+    }
+
+    async function tryRestoreSession(){
+      const token = getToken();
+      if(!token) return applySession(null);
+      try {
+        const r = await apiFetch('/me', { method:'GET' });
+        applySession(r.user);
+      } catch(err){
+        setToken(null);
+        applySession(null);
+      }
+    }
+
+    loginBtn.addEventListener('click', ()=> modal.style.display = 'flex');
+    closeModal.addEventListener('click', ()=> modal.style.display = 'none');
+
+    doLogin.addEventListener('click', async ()=>{
+      const u = usernameInput.value.trim();
+      const p = passwordInput.value;
+      try {
+        const r = await fetch(API_BASE + '/login', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ username:u, password:p })
+        }).then(res => res.json());
+        if(r.token){
+          setToken(r.token);
+          applySession(r.user);
+          modal.style.display = 'none';
+        } else {
+          alert('Falha no login');
+        }
+      } catch(e){
+        alert('Erro ao conectar à API: ' + e.message);
+      }
+    });
+
+    logoutBtn.addEventListener('click', async ()=>{
+      try { await apiFetch('/logout', { method:'POST' }); } catch(e){}
+      setToken(null);
+      applySession(null);
+    });
+
+    async function fetchAndRender(){
+      try {
+        const turma = turmaSelect.value;
+        const q = searchInput.value.trim();
+        const evResp = await apiFetch('/events?turma=' + encodeURIComponent(turma) + '&q=' + encodeURIComponent(q), { method:'GET' });
+        const eventos = evResp.events || [];
+        eventsListEl.innerHTML = '';
+        if(eventos.length === 0) eventsListEl.innerHTML = '<div class="muted">Nenhum evento</div>';
+        eventos.slice(0,20).forEach(ev => {
+          const div = document.createElement('div');
+          div.className = 'event-item';
+          div.innerHTML = `<div style="display:flex;align-items:center"><div class="ev-swatch" style="background:${ev.type === 'meeting' ? 'var(--event-meeting)' : ev.type === 'lecture' ? 'var(--event-lecture)' : ev.type === 'homework' ? 'var(--event-homework)' : ev.type === 'test' ? 'var(--event-test)' : 'var(--event-other)'}"></div><div><strong>${ev.title}</strong><div class="muted">${ev.date} • ${ev.time} • ${ev.detail}</div></div></div><div class="muted">${ev.turma === 'all' ? 'Geral' : ev.turma}</div>`;
+          eventsListEl.appendChild(div);
+        });
+
+        const comResp = await apiFetch('/comunicados?turma=' + encodeURIComponent(turma) + '&q=' + encodeURIComponent(q), { method:'GET' });
+        const coms = comResp.comunicados || [];
+        comunicadosEl.innerHTML = '';
+        if(coms.length === 0) comunicadosEl.innerHTML = '<div class="muted">Nenhum comunicado</div>';
+        coms.forEach(c => {
+          const d = document.createElement('div'); d.style.marginBottom = '8px';
+          d.innerHTML = `<strong>${c.title}</strong><div class="muted">${c.text}</div>`;
+          comunicadosEl.appendChild(d);
+        });
+      } catch(e){
+        console.error(e);
+      }
+    }
+
+    newEventBtn.addEventListener('click', async ()=>{
+      if(!currentUser || !(currentUser.role === 'professor' || currentUser.role === 'admin')){
+        return alert('Apenas professores/admin podem criar eventos.');
+      }
+      const title = prompt('Título:'); if(!title) return;
+      const date = prompt('Data (AAAA-MM-DD):', new Date().toISOString().slice(0,10)); if(!date) return;
+      const time = prompt('Hora (HH:MM):','10:00'); if(!time) return;
+      const turma = prompt('Turma (8A/8B/9A/all):', turmaSelect.value || 'all') || 'all';
+      const type = prompt('Tipo (meeting/lecture/homework/test/other):','other');
+      try {
+        const resp = await apiFetch('/events', { method:'POST', body: JSON.stringify({ title,date,time,turma,type,detail:'(novo)', roles:['aluno','professor','admin'] }) });
+        alert('Evento criado (id ' + resp.event.id + ')');
+        fetchAndRender();
+      } catch(err){
+        alert('Erro: ' + err.message);
+      }
+    });
+
+    turmaSelect.addEventListener('change', fetchAndRender);
+    searchInput.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') fetchAndRender(); });
+
+    // show month title
+    document.getElementById('monthTitle').textContent = new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+
+    tryRestoreSession();
+  </script>
+</body>
+</html>
